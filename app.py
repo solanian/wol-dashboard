@@ -31,34 +31,20 @@ def save_devices(devices):
 
 # Updated ping helper
 
-# Updated ping helper
+def ping_device(ip, os_type, timeout_sec=1.0):
+    import socket
+    port_map = {
+        "linux": 22,
+        "mac": 22,
+        "windows": 22,  # 또는 WMI/PsExec 사용할 경우 다른 포트
+    }
+    port = port_map.get(os_type.lower(), 22)
+    try:
+        with socket.create_connection((ip, port), timeout=timeout_sec):
+            return True
+    except Exception:
+        return False
 
-def ping_device(ip: str, timeout_sec: float = 1.0) -> bool:
-    import platform, subprocess
-    if not ip:
-        return False
-    system = platform.system().lower()
-    try:
-        if system == "windows":
-            cmd = ["ping", "-n", "1", "-w", str(int(timeout_sec * 1000)), ip]
-        else:
-            cmd = ["ping", "-c", "1", ip]
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return result.returncode == 0
-    except Exception as e:
-        print(f"[PING DEBUG] Failed for {ip}: {e}")
-        return False
-    system = platform.system().lower()
-    try:
-        if system == "windows":
-            cmd = ["ping", "-n", "1", "-w", str(int(timeout_sec * 1000)), ip]
-        else:
-            cmd = ["ping", "-c", "1", ip]
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return result.returncode == 0
-    except Exception as e:
-        print(f"[PING DEBUG] Failed for {ip}: {e}")
-        return False
 
 # WOL
 
@@ -100,10 +86,69 @@ def ssh_shutdown(ip: str, os_type: str, username: str, password: str, timeout: f
         except Exception:
             pass
 
+# Authentication
+
+def check_password():
+    """Returns `True` if the user had the correct password."""
+    def password_entered():
+        """Checks whether a password entered by the user is correct."""
+        username = st.session_state["username"]
+        password = st.session_state["password"]
+
+        # Check if secrets are configured
+        if "passwords" not in st.secrets:
+            st.error("비밀번호가 설정되지 않았습니다. .streamlit/secrets.toml 파일을 확인하세요.")
+            return
+
+        # Verify credentials
+        if username in st.secrets["passwords"] and st.secrets["passwords"][username] == password:
+            st.session_state["password_correct"] = True
+            st.session_state["authenticated_user"] = username
+            del st.session_state["password"]  # Don't store password
+            del st.session_state["username"]
+        else:
+            st.session_state["password_correct"] = False
+
+    # First run, show login screen
+    if "password_correct" not in st.session_state:
+        st.title("🔐 로그인")
+        st.text_input("사용자명", key="username")
+        st.text_input("비밀번호", type="password", key="password", on_change=password_entered)
+        if st.button("로그인"):
+            password_entered()
+        return False
+
+    # Password not correct, show error and login again
+    elif not st.session_state["password_correct"]:
+        st.title("🔐 로그인")
+        st.text_input("사용자명", key="username")
+        st.text_input("비밀번호", type="password", key="password", on_change=password_entered)
+        st.error("😕 사용자명 또는 비밀번호가 올바르지 않습니다")
+        if st.button("로그인"):
+            password_entered()
+        return False
+
+    # Password correct
+    else:
+        return True
+
 # Streamlit App
 
 def main():
     st.set_page_config(page_title="Wake-on-LAN Dashboard (Tabs + Shutdown)", page_icon="💡", layout="wide")
+
+    # Check authentication first
+    if not check_password():
+        st.stop()  # Do not continue if check_password is False
+
+    # Add logout button in sidebar
+    with st.sidebar:
+        st.write(f"👤 로그인: **{st.session_state.get('authenticated_user', 'Unknown')}**")
+        if st.button("🚪 로그아웃"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
+
     if "last_refresh" not in st.session_state:
         st.session_state.last_refresh = time.time()
     now = time.time()
@@ -138,7 +183,7 @@ def main():
                     st.markdown(info_line)
                 with col2:
                     if ip:
-                        is_on = ping_device(ip, timeout_sec=0.8)
+                        is_on = ping_device(ip, os_label, timeout_sec=0.8)
                         st.write("🟢 On" if is_on else "🔴 Off")
                     else:
                         st.write("❓ Unknown")
