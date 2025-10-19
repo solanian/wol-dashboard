@@ -1,0 +1,4 @@
+streamlit
+wakeonlan
+pyyaml
+paramiko
