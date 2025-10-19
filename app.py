@@ -31,33 +31,33 @@ def save_devices(devices):
 
 # Updated ping helper
 
+# Updated ping helper
+
 def ping_device(ip: str, timeout_sec: float = 1.0) -> bool:
+    import platform, subprocess
+    if not ip:
+        return False
     system = platform.system().lower()
     try:
         if system == "windows":
             cmd = ["ping", "-n", "1", "-w", str(int(timeout_sec * 1000)), ip]
-        elif system == "darwin":
-            cmd = ["ping", "-c", "1", "-t", str(int(timeout_sec)), ip]
         else:
-            cmd = ["ping", "-c", "1", "-W", str(int(timeout_sec)), ip]
-        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-        print(f"[DEBUG] ping raw output for {ip}: {out}")
-        return True
+            cmd = ["ping", "-c", "1", ip]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return result.returncode == 0
     except Exception as e:
-        print(f"[DEBUG] ping failed for {ip}: {e}")
-        return False
+        print(f"[PING DEBUG] Failed for {ip}: {e}")
         return False
     system = platform.system().lower()
     try:
         if system == "windows":
             cmd = ["ping", "-n", "1", "-w", str(int(timeout_sec * 1000)), ip]
-        elif system == "darwin":  # macOS
-            cmd = ["ping", "-c", "1", "-t", str(int(timeout_sec)), ip]
-        else:  # linux
-            cmd = ["ping", "-c", "1", "-W", str(int(timeout_sec)), ip]
-        subprocess.check_output(cmd, stderr=subprocess.STDOUT, encoding="utf-8")
-        return True
-    except Exception:
+        else:
+            cmd = ["ping", "-c", "1", ip]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return result.returncode == 0
+    except Exception as e:
+        print(f"[PING DEBUG] Failed for {ip}: {e}")
         return False
 
 # WOL
